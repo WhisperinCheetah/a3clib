@@ -73,9 +73,8 @@ int test_memcmp() {
 	char *arr3 = (char*)calloc(sizeof(char), size);
 
 	for (int i = 0; i < 1000; i++) {
-		char v = (char)(rand() % 255);
-		arr1[i] = v;
-		arr2[i] = v;
+		arr1[i] = 'a';
+		arr2[i] = 'a';
 		arr3[i] = 0;
 	}
 
@@ -87,16 +86,38 @@ int test_memcmp() {
 	}
 
 	v = cl_memcmp(arr1, arr3, size);
-	if (v >= 0) {
+	if (v <= 0) {
 		printf("test_memcmp() failed!\n");
 		printf("comparison between arr1 and arr3 should return a value >0, but returned %d\n", v);
 		return 1;
 	}
 
 	v = cl_memcmp(arr3, arr1, size);
-	if (cl_memcmp(arr3, arr1, size) <= 0) {
+	if (v >= 0) {
 		printf("test_memcmp() failed!\n");
 		printf("comparison between arr3 and arr1 should return a value <0, but did not\n");
+		return 1;
+	}
+
+	return 0;
+}
+
+int test_atoi() {
+	const char* str1 = "12";
+	int v1 = cl_atoi(str1);
+	int v1actual = atoi(str1);
+	if (v1 != v1actual) {
+		printf("test_atoi() failed!\n");
+		printf("v1 should be %d but was %d\n", v1actual, v1);
+		return 1;
+	}
+
+	const char* str2 = "0092847";
+	int v2 = cl_atoi(str2);
+	int v2actual = atoi(str2);
+	if (v2 != v2actual) {
+		printf("test_atoi() failed!\n");
+		printf("v2 should be %d but was %d\n", v2actual, v2);
 		return 1;
 	}
 
@@ -106,12 +127,13 @@ int test_memcmp() {
 int main() {
 	srand(time(NULL));
 	
-	static int test_count = 4;
+	static int test_count = 5;
 	static int (*tests[]) () = {
 		test_merge_sort,
 		test_double_bubble_sort,
 		test_memcpy,
 		test_memcmp,
+		test_atoi,
 	};
 	
 	printf("======== STARTING %d TESTS ============\n", test_count);
@@ -122,10 +144,10 @@ int main() {
 		if (code == 0) {
 			success++;
 		} else {
-			printf("Failed test, exit code: %d\n", i);
+			printf("TESTING: Failed test %d\n", i);
 			failed++;
 		}
 		printf("TESTING: +%d, -%d\n", success, failed);
 	}
-	return 0;
+	return failed;
 }
