@@ -2,6 +2,23 @@
 #include <time.h>
 #include "clib.h"
 
+int assert(int expected, int actual, const char* message) {
+	if (expected != actual) {
+		printf("ASSERTION FAILED! expected %d, got %d\n", expected, actual);
+		printf("%s", message);
+		return FAILURE;
+	}
+
+	return SUCCESS;
+}
+
+void assert_st(STATUS* status, int expected, int actual, const char* message) {
+	STATUS res = assert(expected, actual, message);
+	if (res != SUCCESS) {
+		*status = res;
+	}
+}
+
 int test_merge_sort() {
 	cl_memcpy(NULL, NULL, 0);
 
@@ -124,23 +141,116 @@ int test_atoi() {
 	return 0;
 }
 
+int test_cl_array() {
+	int values[] = { 1, 2, 3 };
+	cl_array *cl_arr = cl_array_create(sizeof(int));
+
+	for (int i = 0; i < 3; i++) {
+		cl_array_add(cl_arr, &(values[i]));
+	}
+
+	const char* equal_message = "Dynamic array and normal array do not match!";
+	int v;
+	for (int i = 0; i < 3; i++) {
+		cl_array_get(cl_arr, i, &v);
+		if (assert(values[i], v, equal_message) != SUCCESS) {
+			return FAILURE;
+		}
+	}
+
+	const char* count_message = "Array size is not equal to 3\n";
+	if (assert(3, cl_arr->count, count_message)) return FAILURE;
+
+	return SUCCESS;
+		
+}
+
+int test_cl_malloc1() {
+	const int size = 4;
+	int values1[] = { 1, 2, 3, 4 };
+	int values2[] = { 4, 5, 6, 7 };
+	int values3[] = { 8, 9, 10, 11 };
+
+	int* ptr1 = (int*)cl_malloc(sizeof(int) * size);
+	int* ptr2 = (int*)cl_malloc(sizeof(int) * size);
+	int* ptr3 = (int*)cl_malloc(sizeof(int) * size);
+
+	for (int i = 0; i < size; i++) {
+		ptr1[i] = values1[i];
+		ptr2[i] = values2[i];
+		ptr3[i] = values3[i];
+	}
+
+	STATUS status = SUCCESS;
+	for (int i = 0; i < size; i++) {
+		assert_st(&status, values1[i], ptr1[i], "First heap array and stack array do not match!\n");
+		assert_st(&status, values2[i], ptr2[i], "Second heap array and stack array do not match!\n");
+		assert_st(&status, values3[i], ptr3[i], "Third heap array and stack array do not match!\n");
+	}
+
+	return status;
+}
+
+int test_cl_malloc2() {
+	void* ptr = cl_malloc(10000);
+	if (ptr != NULL) {
+		printf("Allocated array bigger than heap size (?\?\?)\n");
+		return FAILURE;
+	}
+
+	return SUCCESS;
+}
+
+
+
+int test_cl_hashmap() {
+	char* m1 = "woord1\0";
+	char* m2 = "woord2\0";
+	char* m3 = "woord3\0";
+
+	cl_hashmap map;
+	cl_hashmap_init(&map, -1);
+
+	cl_hashmap_add(&map, m1, 10);
+	cl_hashmap_add(&map, m2, 20);
+	cl_hashmap_add(&map, m3, 30);
+
+	int* v1 = cl_hashmap_get(&map, m1);
+	(*v1)++;
+
+	STATUS status = SUCCESS;
+	assert_st(&status, 11, *cl_hashmap_get(&map, m1), "First hashmap value is incorrect\n");
+	assert_st(&status, 20, *cl_hashmap_get(&map, m2), "Second hashmap value is incorrect\n");
+	assert_st(&status, 30, *cl_hashmap_get(&map, m3), "Third hashmap value is incorrect\n");
+
+	cl_hashmap_destroy(&map);
+
+	return status;
+}
+
+typedef int (*test_ptr)();
+
 int main() {
 	srand(time(NULL));
-	
-	static int test_count = 5;
-	static int (*tests[]) () = {
+
+	const int test_count = 9;
+	const test_ptr tests[] = {
 		test_merge_sort,
 		test_double_bubble_sort,
 		test_memcpy,
 		test_memcmp,
 		test_atoi,
+		test_cl_array,
+		test_cl_malloc1,
+		test_cl_malloc2,
+		test_cl_hashmap,
 	};
-	
+
 	printf("======== STARTING %d TESTS ============\n", test_count);
 	int failed = 0;
 	int success = 0;
 	for (int i = 0; i < test_count; i++) {
-		int code = tests[i]();
+		int code = (*tests[i])();
 		if (code == 0) {
 			success++;
 		} else {

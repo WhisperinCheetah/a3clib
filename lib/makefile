@@ -1,6 +1,6 @@
 CFLAGS = -Wall -Wextra -Wno-missing-braces -Werror=pointer-arith
 
-OBJS = alg.o mem.o str.o
+OBJS = alg.o mem.o str.o das.o
 
 all: clib
 
@@ -14,6 +14,9 @@ mem.o: mem.c clib.h
 	gcc -c $< $(CFLAGS)
 
 str.o: str.c clib.h
+	gcc -c $< $(CFLAGS)
+
+das.o: das.c clib.h
 	gcc -c $< $(CFLAGS)
 
 clean:
