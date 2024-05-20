@@ -27,6 +27,7 @@ gcc $(CFLAGS) -I/path/to/lib -L../path/to/lib/output/ <output name & file you're
 ### Memory
 - memcpy
 - memcmp
+- memset
 - malloc
 - free
 
