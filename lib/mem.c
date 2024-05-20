@@ -12,11 +12,13 @@ void cl_memcpy(void *dest, void *src, int count) {
 	}
 }
 
-int cl_memcmp(const void* r, const void* l, int count) {
+int cl_memcmp(const void* l, const void* r, int count) {
+	char* left = (char*)l;
+	char* right = (char*)r;
 	for (int i = 0; i < count; i++) {
 		// Comparing like this halves the amount of comparisons per iteration
-		if (((char*)l)[i] != ((char*)r)[i]) { 
-			if (((char*)l)[i] < ((char*)r)[i]) {
+		if (left[i] != right[i]) { 
+			if (left[i] < right[i]) {
 				return -1;
 			} else {
 				return 1;
@@ -57,6 +59,10 @@ STATUS cl_heap_init(cl_heap_info* heap_info) {
 	heap_info->start = first;
 	heap_info->avail = first->size;
 
+	printf("Initialized heap @ %p\n", start);
+	printf("sizeof(cl_heap_chunk) = %ld\n", sizeof(cl_heap_chunk));
+	printf("sizeof(cl_heap_info) = %ld\n", sizeof(cl_heap_chunk));
+	
 	return SUCCESS;
 }
 
@@ -78,30 +84,66 @@ void ensure_initialized() {
 	}
 }
 
-void* cl_malloc(int amount) {
-	ensure_initialized();
-	int aligned_amount = get_aligned(amount, 16) + 16; // Add 16 for metadata about chunk
-
-	if (aligned_amount > heap.avail) {
-		return NULL;
+void cl_chunk_defrag(cl_heap_info* heap_info, cl_heap_chunk* chunk) {
+	while (chunk->next != NULL && chunk->next->inuse == false) {
+		// Merge forward
+		cl_heap_chunk* next = chunk->next;
+		chunk->size += next->size + 16; // add 16 since metadata gets removed
+		heap_info->avail += 16;
+		chunk->next = next->next;
 	}
+}
 
-	cl_heap_chunk* chunk = heap.start;
+void cl_heap_defrag(cl_heap_info* heap_info) {
+	cl_heap_chunk* chunk = heap_info->start;
+	printf("Start chunk: %p\n", chunk);
+	while (chunk->next != NULL) {
+		if (chunk->inuse == false) {
+			cl_chunk_defrag(heap_info, chunk);
+		}
+		chunk = chunk->next;
+	}
+}
+
+cl_heap_chunk* cl_heap_find_chunk(cl_heap_chunk* start, int amount) {
+	cl_heap_chunk* chunk = start;
 	while ((chunk->inuse || chunk->size < amount) && chunk != NULL) {
 		chunk = chunk->next;
 	}
+	return chunk;
+}
 
-	if (chunk == NULL) {
-		// Try defrag, else return NULL
-		return NULL;
+void* cl_malloc(int amount) {
+	ensure_initialized();
+	int aligned_amount = get_aligned(amount, 16); // Add 16 for metadata about chunk
+
+	if (aligned_amount > heap.avail) {
+		// If not enough space, try defragmentation
+		cl_heap_defrag(&heap);
+		if (aligned_amount > heap.avail) {
+			printf("Heap space full! available: %d, wanted: %d\n", heap.avail, aligned_amount);
+			return NULL;
+		}
 	} 
 
-	
-	if (chunk->size - aligned_amount >= 16) {
+	// Go over all chunks and find first one that has size great enough
+	// If none are fonud chunk will be NULL
+	cl_heap_chunk* chunk = cl_heap_find_chunk(heap.start, aligned_amount);
+	if (chunk == NULL) {
+		// Try again after defragging heap
+		cl_heap_defrag(&heap);
+		chunk = cl_heap_find_chunk(heap.start, aligned_amount);
+	} 
+
+
+	// If chunk is greater than the wanted amount and has at least
+	// 32 extra remaining, split it.
+	// 32 for metadata + at least 16 for other chunk
+	if (chunk->size - aligned_amount >= 32) { 
 		// Split chunk
 		// Get position for next chunk metadata
-		cl_heap_chunk* next = chunk + (aligned_amount / 16) - 1;
-		next->size = chunk->size - aligned_amount;
+		cl_heap_chunk* next = chunk + (aligned_amount / 16) + 1; // metadata gets put behind
+		next->size = chunk->size - aligned_amount - 16;
 		next->inuse = false;
 		next->next = chunk->next;
 
@@ -111,8 +153,20 @@ void* cl_malloc(int amount) {
 		heap.avail -= 16;
 	}
 
+	printf("Allocated pointer; size=%d, actual size=%d @ %p\n", aligned_amount, chunk->size, chunk+1);
+	
 	heap.avail -= chunk->size;
 	return (void*)(chunk + 1);
+}
+
+void cl_free(void* ptr) {
+	printf("Freeing %p\n", ptr);
+	ensure_initialized();
+
+	cl_heap_chunk* chunk = ((cl_heap_chunk*)ptr) - 1;
+	chunk->inuse = false;
+	heap.avail += chunk->size;
+	cl_chunk_defrag(&heap, chunk);
 }
 
 void* cl_calloc(int size, int count) {
@@ -123,10 +177,4 @@ void* cl_calloc(int size, int count) {
 void* cl_realloc(void* ptr, int resize) {
 	printf("Realloc not yet implemented! cl_realloc(%p, %d)\n", ptr, resize);
 	return NULL;
-}
-
-void cl_free(void* ptr) {
-	ensure_initialized();
-	printf("Free not yet implemented! free(%p)\n", ptr);
-	// do nothing yet
 }

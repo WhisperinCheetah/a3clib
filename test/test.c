@@ -2,6 +2,10 @@
 #include <time.h>
 #include "clib.h"
 
+#include <stdbool.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
 int assert(int expected, int actual, const char* message) {
 	if (expected != actual) {
 		printf("ASSERTION FAILED! expected %d, got %d\n", expected, actual);
@@ -14,6 +18,36 @@ int assert(int expected, int actual, const char* message) {
 
 void assert_st(STATUS* status, int expected, int actual, const char* message) {
 	STATUS res = assert(expected, actual, message);
+	if (res != SUCCESS) {
+		*status = res;
+	}
+}
+
+STATUS assert_ptr(void* expected, void* actual, const char* message) {
+	if (expected != actual) {
+		printf("ASSERTION FAILED! expected %p, got %p\n", expected, actual);
+		printf("%s", message);
+		return FAILURE;
+	}
+	return SUCCESS;
+}
+
+void assert_ptr_st(STATUS* status, void* expected, void* actual, const char* message) {
+	STATUS res = assert_ptr(expected, actual, message);
+
+	if (res != SUCCESS) {
+		*status = res;
+	}
+}
+
+void assert_ptr_ne_st(STATUS* status, void* expected, void* actual, const char* message) {
+	STATUS res = SUCCESS;
+	if (expected == actual) {
+		printf("ASSERTION FAILED! expected NOT %p, got %p\n", expected, actual);
+		printf("%s", message);
+		res = FAILURE;
+	}
+
 	if (res != SUCCESS) {
 		*status = res;
 	}
@@ -188,17 +222,19 @@ int test_cl_malloc1() {
 		assert_st(&status, values3[i], ptr3[i], "Third heap array and stack array do not match!\n");
 	}
 
+	cl_free(ptr3);
+	cl_free(ptr2);
+	cl_free(ptr1);
+
+	int ptr_size = getpagesize() - 32;
+	assert_ptr_ne_st(&status, NULL, cl_malloc(ptr_size), "Pointer should be allocated!\n");
+	assert_ptr_st(&status, NULL, cl_malloc(16), "Pointer should not be allocated!\n");
+	
 	return status;
 }
 
 int test_cl_malloc2() {
-	void* ptr = cl_malloc(10000);
-	if (ptr != NULL) {
-		printf("Allocated array bigger than heap size (?\?\?)\n");
-		return FAILURE;
-	}
-
-	return SUCCESS;
+	return assert_ptr(NULL, cl_malloc(10000), "Should not be able to allocate greater than heap size\n");
 }
 
 

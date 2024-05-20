@@ -51,7 +51,7 @@ int cl_memcmp(const void* r, const void* l, int count);
 void* cl_malloc(int amount);
 void* cl_calloc(int size, int count);
 void* cl_realloc(void* ptr, int resize);
-void free(void* ptr);
+void cl_free(void* ptr);
 
 /* STRING FUNCTIONS */
 int cl_atoi(const char *str);
