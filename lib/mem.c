@@ -1,4 +1,4 @@
-#include "clib.h"
+#include "a3clib.h"
 
 #include <stdbool.h>
 #include <sys/mman.h>
@@ -27,6 +27,15 @@ int cl_memcmp(const void* l, const void* r, int count) {
 	}
 
 	return 0;
+}
+
+void cl_memset(void* dest, char c, int count) {
+	if (dest != NULL && count > 0) {
+		char* char_dest = (char*)dest;
+		for (int i = 0; i < count; i++) {
+			char_dest[i] = c;
+		}
+	}
 }
 
 
@@ -159,22 +168,35 @@ void* cl_malloc(int amount) {
 	return (void*)(chunk + 1);
 }
 
+void* cl_calloc(int size, int count) {
+	void* ptr = cl_malloc(size * count);
+	if (ptr != NULL) {
+		char* byte_ptr = (char*)ptr;
+		for (int i = 0; i < size*count; i++) {
+			byte_ptr[i] = 0;
+		}
+	}
+	return ptr;
+}
+
 void cl_free(void* ptr) {
 	printf("Freeing %p\n", ptr);
 	ensure_initialized();
 
+	if (ptr == NULL) {
+		printf("Warning: tried to call free on a null-pointer!\n");
+		// add check to see if pointer is within heap bounds
+		return;
+	}
+	
 	cl_heap_chunk* chunk = ((cl_heap_chunk*)ptr) - 1;
 	chunk->inuse = false;
 	heap.avail += chunk->size;
 	cl_chunk_defrag(&heap, chunk);
 }
 
-void* cl_calloc(int size, int count) {
-	printf("Calloc not yet implemented! cl_calloc(%d, %d)\n", size, count);
-	return NULL;
-}
-
 void* cl_realloc(void* ptr, int resize) {
 	printf("Realloc not yet implemented! cl_realloc(%p, %d)\n", ptr, resize);
 	return NULL;
 }
+

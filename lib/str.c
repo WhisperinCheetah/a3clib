@@ -1,4 +1,4 @@
-#include "clib.h"
+#include "a3clib.h"
 
 int cl_atoi(const char *str) {
 	int res = 0;

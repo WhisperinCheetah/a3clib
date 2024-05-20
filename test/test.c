@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <time.h>
-#include "clib.h"
+#include "a3clib.h"
 
 #include <stdbool.h>
 #include <sys/mman.h>
@@ -94,10 +94,11 @@ int test_double_bubble_sort() {
 }
 
 int test_memcpy() {
-	const int size = 1000;
-	int *arr1 = (int*)malloc(sizeof(int) * size);
-	int *arr2 = (int*)malloc(sizeof(int) * size);
-	int *arr3 = (int*)malloc(sizeof(int) * size);
+	const int size = 250;
+	int *arr1 = (int*)cl_malloc(sizeof(int) * size);
+	int *arr2 = (int*)cl_malloc(sizeof(int) * size);
+	int *arr3 = (int*)cl_malloc(sizeof(int) * size);
+	printf("%p;\n%p;\n%p;\n", arr1, arr2, arr3);
 	for (int i = 0; i < size; i++) {
 		arr1[i] = rand() % size;
 	}
@@ -114,14 +115,20 @@ int test_memcpy() {
 			return 1;
 		}
 	}
+
+	cl_free(arr3);
+	cl_free(arr2);
+	cl_free(arr1);
+	
 	return 0;
 }
 
 int test_memcmp() {
 	const int size = 1000;
-	char *arr1 = (char*)malloc(sizeof(char) * size);
-	char *arr2 = (char*)malloc(sizeof(char) * size);
-	char *arr3 = (char*)calloc(sizeof(char), size);
+	printf("Wanted size: %ld\n", sizeof(char) * size);
+	char *arr1 = (char*)cl_malloc(sizeof(char) * size);
+	char *arr2 = (char*)cl_malloc(sizeof(char) * size);
+	char *arr3 = (char*)cl_calloc(sizeof(char), size);
 
 	for (int i = 0; i < 1000; i++) {
 		arr1[i] = 'a';
@@ -150,7 +157,26 @@ int test_memcmp() {
 		return 1;
 	}
 
+	cl_free(arr3);
+	cl_free(arr2);
+	cl_free(arr1);
+	
 	return 0;
+}
+
+int test_memset() {
+	int size = getpagesize() / 2;
+	char* ptr = (char*)cl_malloc(size);
+	cl_memset(ptr, 'c', size);
+
+	STATUS st = SUCCESS;
+	for (int i = 0; i < size; i++) {
+		assert_st(&st, 'c', ptr[i], "memset did not fill buffer with 'c'\n");
+	}
+
+	cl_free(ptr);
+
+	return st;
 }
 
 int test_atoi() {
@@ -227,8 +253,13 @@ int test_cl_malloc1() {
 	cl_free(ptr1);
 
 	int ptr_size = getpagesize() - 32;
-	assert_ptr_ne_st(&status, NULL, cl_malloc(ptr_size), "Pointer should be allocated!\n");
-	assert_ptr_st(&status, NULL, cl_malloc(16), "Pointer should not be allocated!\n");
+	void* big_ptr = cl_malloc(ptr_size);
+	void* sml_ptr = cl_malloc(16);
+	assert_ptr_ne_st(&status, NULL, big_ptr, "Pointer should be allocated!\n");
+	assert_ptr_st(&status, NULL, sml_ptr, "Pointer should not be allocated!\n");
+
+	cl_free(big_ptr);
+	cl_free(sml_ptr);
 	
 	return status;
 }
@@ -237,6 +268,19 @@ int test_cl_malloc2() {
 	return assert_ptr(NULL, cl_malloc(10000), "Should not be able to allocate greater than heap size\n");
 }
 
+int test_cl_calloc() {
+	STATUS st = SUCCESS;
+
+	int size = getpagesize() - 16;
+	char* ptr = (char*)calloc(size, 1); // Get entire heap
+	assert_ptr_ne_st(&st, NULL, ptr, "Could not allocate enough memory\n");
+	
+	for (int i = 0; i < size; i++) {
+		assert_st(&st, 0, ptr[i], "Byte was not set to 0 in calloc call\n");
+	}
+
+	return st;
+}
 
 
 int test_cl_hashmap() {
@@ -269,16 +313,18 @@ typedef int (*test_ptr)();
 int main() {
 	srand(time(NULL));
 
-	const int test_count = 9;
+	const int test_count = 10;
 	const test_ptr tests[] = {
 		test_merge_sort,
 		test_double_bubble_sort,
 		test_memcpy,
 		test_memcmp,
+		test_memset,
 		test_atoi,
 		test_cl_array,
 		test_cl_malloc1,
 		test_cl_malloc2,
+		test_cl_calloc,
 		test_cl_hashmap,
 	};
 

@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-
 /* HEADERS */
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -47,6 +45,7 @@ typedef struct _cl_hashmap {
 /* MEMORY FUNCTIONS */
 void cl_memcpy(void *dest, void *src, int count);
 int cl_memcmp(const void* r, const void* l, int count);
+void cl_memset(void* dest, char c, int count);
 
 void* cl_malloc(int amount);
 void* cl_calloc(int size, int count);
