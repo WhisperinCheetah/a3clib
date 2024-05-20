@@ -1,5 +1,5 @@
 # a3clib
-This repository contains my own implementation of the c standard library.
+This repository contains my own implementation of the c standard library. Documentation is still being worked on.
 
 ## Quickstart
 
