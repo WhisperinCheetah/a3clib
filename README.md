@@ -33,3 +33,6 @@ gcc $(CFLAGS) -I/path/to/lib -L../path/to/lib/output/ <output name & file you're
 ### Datastructures
 - dynamic array
 - hashmap (String -> Int)
+
+## Tests
+The current test suite is everything except thorough or even good. It performs some basic tests for all the functions but there are definitely still bugs.
