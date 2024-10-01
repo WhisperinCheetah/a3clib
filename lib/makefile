@@ -2,7 +2,7 @@ CFLAGS = -Wall -Wextra -Wno-missing-braces -Werror=pointer-arith
 
 NAME = a3clib
 HEADER = $(NAME).h
-OBJS = alg.o mem.o str.o das.o
+OBJS = alg.o mem.o str.o das.o mth.o
 
 all: $(NAME)
 
@@ -19,6 +19,9 @@ str.o: str.c $(HEADER)
 	gcc -c $< $(CFLAGS)
 
 das.o: das.c $(HEADER)
+	gcc -c $< $(CFLAGS)
+
+mth.o: mth.c $(HEADER)
 	gcc -c $< $(CFLAGS)
 
 clean:

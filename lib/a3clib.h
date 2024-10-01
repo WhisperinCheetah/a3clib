@@ -41,6 +41,12 @@ typedef struct _cl_hashmap {
 	int count;
 } cl_hashmap;
 
+/* MATH FUNCTIONS */
+int cl_abs(int n);
+long cl_labs(long n);
+long long cl_llabs(long long n);
+
+float cl_fabsf(float x);
 
 /* MEMORY FUNCTIONS */
 void cl_memcpy(void *dest, void *src, int count);

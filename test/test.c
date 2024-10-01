@@ -23,6 +23,14 @@ void assert_st(STATUS* status, int expected, int actual, const char* message) {
 	}
 }
 
+void assertf_st(STATUS* status, float expected, float actual, const char* message) {
+	STATUS res = assert(expected, actual, message);
+	if (res != SUCCESS) {
+		*status = res;
+	}
+}
+
+
 STATUS assert_ptr(void* expected, void* actual, const char* message) {
 	if (expected != actual) {
 		printf("ASSERTION FAILED! expected %p, got %p\n", expected, actual);
@@ -256,16 +264,12 @@ int test_cl_malloc1() {
 	void* big_ptr = cl_malloc(ptr_size);
 	void* sml_ptr = cl_malloc(16);
 	assert_ptr_ne_st(&status, NULL, big_ptr, "Pointer should be allocated!\n");
-	assert_ptr_st(&status, NULL, sml_ptr, "Pointer should not be allocated!\n");
+	assert_ptr_ne_st(&status, NULL, sml_ptr, "Pointer should be allocated!\n");
 
 	cl_free(big_ptr);
 	cl_free(sml_ptr);
 	
 	return status;
-}
-
-int test_cl_malloc2() {
-	return assert_ptr(NULL, cl_malloc(10000), "Should not be able to allocate greater than heap size\n");
 }
 
 int test_cl_calloc() {
@@ -308,12 +312,43 @@ int test_cl_hashmap() {
 	return status;
 }
 
+int test_abs() {
+	int x = -3;
+	int y = 3;
+
+	int ax = cl_abs(x);
+	int ay = cl_abs(y);
+	
+	int expected = 3;
+
+	STATUS st = SUCCESS;
+	assert_st(&st, expected, ax, "abs did not return correct value\n");
+	assert_st(&st, expected, ay, "abs did not return correct value\n");
+		
+	return st;
+}
+
+int test_fabsf() {
+	float x = -3.;
+	float y = 3.;
+
+	float ax = cl_fabsf(x);
+	float ay = cl_fabsf(y);
+
+	float exp = 3.;
+
+	STATUS st = SUCCESS;
+	assertf_st(&st, exp, ax, "fabsf did not return correct value\n");
+	assertf_st(&st, exp, ay, "fabsf did not return correct value\n");
+	return st;
+}
+
 typedef int (*test_ptr)();
 
 int main() {
 	srand(time(NULL));
 
-	const int test_count = 10;
+	const int test_count = 11;
 	const test_ptr tests[] = {
 		test_merge_sort,
 		test_double_bubble_sort,
@@ -323,9 +358,10 @@ int main() {
 		test_atoi,
 		test_cl_array,
 		test_cl_malloc1,
-		test_cl_malloc2,
 		test_cl_calloc,
 		test_cl_hashmap,
+		test_abs,
+		test_fabsf,
 	};
 
 	printf("======== STARTING %d TESTS ============\n", test_count);

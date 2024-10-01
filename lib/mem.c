@@ -47,36 +47,44 @@ typedef struct _cl_heap_chunk {
 
 typedef struct _cl_heap_info {
 	cl_heap_chunk* start;
+	cl_heap_chunk* first_free;
 	int avail;
 } cl_heap_info;
 
 static cl_heap_info heap;
 static bool initialized = false;
+static int heap_size;
 
 STATUS cl_heap_init(cl_heap_info* heap_info) {
-	void* start = mmap(NULL, getpagesize(), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+	// Standard heap space is 4096 bytes
+	// Slight overkill so I chose 1MB
+	// 4096 bytes * 256 = 1024*1024bytes = 1024KB = 1MB
+	heap_size = getpagesize() * 1024; 
+	void* start = mmap(NULL, heap_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 	if (start == (void*)-1) {
-		printf("Failed to initialize heap\n");
+		fprintf(stderr, "Failed to initialize heap\n");
 		return MEMORY;
 	} 
 
 	cl_heap_chunk* first = (cl_heap_chunk*)start; // Put metadata at start
-	first->size = getpagesize() - sizeof(cl_heap_chunk);
+	first->size = heap_size - sizeof(cl_heap_chunk);
 	first->inuse = false;
 	first->next = NULL;
 
 	heap_info->start = first;
+	heap_info->first_free = first;
 	heap_info->avail = first->size;
 
-	printf("Initialized heap @ %p\n", start);
-	printf("sizeof(cl_heap_chunk) = %ld\n", sizeof(cl_heap_chunk));
-	printf("sizeof(cl_heap_info) = %ld\n", sizeof(cl_heap_chunk));
+	fprintf(stderr, "Initialized heap @ %p\n", start);
+	fprintf(stderr, "sizeof(cl_heap_chunk) = %ld\n", sizeof(cl_heap_chunk));
+	fprintf(stderr, "sizeof(cl_heap_info) = %ld\n", sizeof(cl_heap_chunk));
 	
 	return SUCCESS;
 }
 
 void cl_cleanup_heap() {
 	// Cleanup on exit
+	munmap(heap.start, heap_size);
 }
 
 int get_aligned(int amount, int alignment) {
@@ -105,7 +113,7 @@ void cl_chunk_defrag(cl_heap_info* heap_info, cl_heap_chunk* chunk) {
 
 void cl_heap_defrag(cl_heap_info* heap_info) {
 	cl_heap_chunk* chunk = heap_info->start;
-	printf("Start chunk: %p\n", chunk);
+	//printf("Start chunk: %p\n", chunk);
 	while (chunk->next != NULL) {
 		if (chunk->inuse == false) {
 			cl_chunk_defrag(heap_info, chunk);
@@ -130,13 +138,13 @@ void* cl_malloc(int amount) {
 		// If not enough space, try defragmentation
 		cl_heap_defrag(&heap);
 		if (aligned_amount > heap.avail) {
-			printf("Heap space full! available: %d, wanted: %d\n", heap.avail, aligned_amount);
+			fprintf(stderr, "Heap space full! available: %d, wanted: %d\n", heap.avail, aligned_amount);
 			return NULL;
 		}
 	} 
 
 	// Go over all chunks and find first one that has size great enough
-	// If none are fonud chunk will be NULL
+	// If none are found chunk will be NULL
 	cl_heap_chunk* chunk = cl_heap_find_chunk(heap.start, aligned_amount);
 	if (chunk == NULL) {
 		// Try again after defragging heap
@@ -162,7 +170,7 @@ void* cl_malloc(int amount) {
 		heap.avail -= 16;
 	}
 
-	printf("Allocated pointer; size=%d, actual size=%d @ %p\n", aligned_amount, chunk->size, chunk+1);
+	// printf("Allocated pointer; size=%d, actual size=%d @ %p\n", aligned_amount, chunk->size, chunk+1);
 	
 	heap.avail -= chunk->size;
 	return (void*)(chunk + 1);
@@ -180,11 +188,11 @@ void* cl_calloc(int size, int count) {
 }
 
 void cl_free(void* ptr) {
-	printf("Freeing %p\n", ptr);
+	// printf("Freeing %p\n", ptr);
 	ensure_initialized();
 
 	if (ptr == NULL) {
-		printf("Warning: tried to call free on a null-pointer!\n");
+		fprintf(stderr, "Warning: tried to call free on a null-pointer!\n");
 		// add check to see if pointer is within heap bounds
 		return;
 	}
