@@ -57,6 +57,7 @@ void* cl_malloc(int amount);
 void* cl_calloc(int size, int count);
 void* cl_realloc(void* ptr, int resize);
 void cl_free(void* ptr);
+int cl_remaining_heap_size();
 
 /* STRING FUNCTIONS */
 int cl_atoi(const char *str);

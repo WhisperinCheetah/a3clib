@@ -138,6 +138,18 @@ int test_memcmp() {
 	char *arr2 = (char*)cl_malloc(sizeof(char) * size);
 	char *arr3 = (char*)cl_calloc(sizeof(char), size);
 
+	if (arr1 == NULL || arr2 == NULL || arr3 == NULL) {
+		fprintf(stderr, "Could not allocate enough memory for arrays\n");
+		fprintf(stderr, "Relevant pointers:\n");
+		fprintf(stderr, "char *arr1 = %p\n", arr1);
+		fprintf(stderr, "char *arr2 = %p\n", arr2);
+		fprintf(stderr, "char *arr3 = %p\n", arr3);
+	}
+
+	printf("char *arr1 = %p\n", arr1);
+	printf("char *arr2 = %p\n", arr2);
+	printf("char *arr3 = %p\n", arr3);
+	
 	for (int i = 0; i < 1000; i++) {
 		arr1[i] = 'a';
 		arr2[i] = 'a';

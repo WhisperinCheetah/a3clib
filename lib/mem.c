@@ -43,6 +43,7 @@ typedef struct _cl_heap_chunk {
 	int size;
 	bool inuse;
 	struct _cl_heap_chunk* next;
+	struct _cl_heap_chunk* ll_next;
 } cl_heap_chunk;
 
 typedef struct _cl_heap_info {
@@ -54,6 +55,7 @@ typedef struct _cl_heap_info {
 static cl_heap_info heap;
 static bool initialized = false;
 static int heap_size;
+cl_heap_chunk* free_list;
 
 STATUS cl_heap_init(cl_heap_info* heap_info) {
 	// Standard heap space is 4096 bytes
@@ -70,14 +72,18 @@ STATUS cl_heap_init(cl_heap_info* heap_info) {
 	first->size = heap_size - sizeof(cl_heap_chunk);
 	first->inuse = false;
 	first->next = NULL;
+	first->ll_next = NULL;
 
 	heap_info->start = first;
 	heap_info->first_free = first;
 	heap_info->avail = first->size;
 
-	fprintf(stderr, "Initialized heap @ %p\n", start);
-	fprintf(stderr, "sizeof(cl_heap_chunk) = %ld\n", sizeof(cl_heap_chunk));
-	fprintf(stderr, "sizeof(cl_heap_info) = %ld\n", sizeof(cl_heap_chunk));
+	free_list = first;
+
+	fprintf(stdout, "Initialized heap @ %p\n", start);
+	fprintf(stdout, "Heap size = %d\n", heap_size);
+	fprintf(stdout, "sizeof(cl_heap_chunk) = %ld\n", sizeof(cl_heap_chunk));
+	fprintf(stdout, "sizeof(cl_heap_info) = %ld\n", sizeof(cl_heap_chunk));
 	
 	return SUCCESS;
 }
@@ -123,7 +129,27 @@ void cl_heap_defrag(cl_heap_info* heap_info) {
 }
 
 cl_heap_chunk* cl_heap_find_chunk(cl_heap_chunk* start, int amount) {
-	cl_heap_chunk* chunk = start;
+	cl_heap_chunk* chunk = free_list;
+	if (free_list != NULL && free_list->size >= amount) {
+		free_list = free_list->ll_next;
+		chunk->ll_next = NULL;
+		return chunk;
+	}
+
+	chunk = free_list;
+	while (chunk->ll_next != NULL && chunk->ll_next->size < amount) {
+		chunk = chunk->ll_next;
+	}
+
+	if (chunk->ll_next != NULL) {
+		cl_heap_chunk* chosen = chunk->ll_next;
+		chunk->ll_next = chunk->ll_next->ll_next;
+		return chosen;
+	}
+
+	return NULL;
+	// Never gets to here
+	chunk = start;
 	while ((chunk->inuse || chunk->size < amount) && chunk != NULL) {
 		chunk = chunk->next;
 	}
@@ -132,11 +158,11 @@ cl_heap_chunk* cl_heap_find_chunk(cl_heap_chunk* start, int amount) {
 
 void* cl_malloc(int amount) {
 	ensure_initialized();
-	int aligned_amount = get_aligned(amount, 16); // Add 16 for metadata about chunk
+	int aligned_amount = get_aligned(amount, sizeof(cl_heap_chunk)); // Add 16 for metadata about chunk
 
 	if (aligned_amount > heap.avail) {
 		// If not enough space, try defragmentation
-		cl_heap_defrag(&heap);
+		// cl_heap_defrag(&heap);
 		if (aligned_amount > heap.avail) {
 			fprintf(stderr, "Heap space full! available: %d, wanted: %d\n", heap.avail, aligned_amount);
 			return NULL;
@@ -148,8 +174,9 @@ void* cl_malloc(int amount) {
 	cl_heap_chunk* chunk = cl_heap_find_chunk(heap.start, aligned_amount);
 	if (chunk == NULL) {
 		// Try again after defragging heap
-		cl_heap_defrag(&heap);
-		chunk = cl_heap_find_chunk(heap.start, aligned_amount);
+		// cl_heap_defrag(&heap);
+		return NULL;
+			//chunk = cl_heap_find_chunk(heap.start, aligned_amount);
 	} 
 
 
@@ -163,10 +190,13 @@ void* cl_malloc(int amount) {
 		next->size = chunk->size - aligned_amount - 16;
 		next->inuse = false;
 		next->next = chunk->next;
+		next->ll_next = free_list;
+		free_list = next;
 
 		chunk->next = next;
 		chunk->size = aligned_amount;
 		chunk->inuse = true;
+		
 		heap.avail -= 16;
 	}
 
@@ -188,7 +218,6 @@ void* cl_calloc(int size, int count) {
 }
 
 void cl_free(void* ptr) {
-	// printf("Freeing %p\n", ptr);
 	ensure_initialized();
 
 	if (ptr == NULL) {
@@ -199,12 +228,18 @@ void cl_free(void* ptr) {
 	
 	cl_heap_chunk* chunk = ((cl_heap_chunk*)ptr) - 1;
 	chunk->inuse = false;
+	chunk->ll_next = free_list;
+	free_list = chunk;
+	// cl_chunk_defrag(&heap, chunk);
 	heap.avail += chunk->size;
-	cl_chunk_defrag(&heap, chunk);
 }
 
 void* cl_realloc(void* ptr, int resize) {
 	printf("Realloc not yet implemented! cl_realloc(%p, %d)\n", ptr, resize);
 	return NULL;
+}
+
+int cl_remaining_heap_size() {
+	return heap.avail;
 }
 

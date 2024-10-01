@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wextra -Wno-missing-braces -Werror=pointer-arith
+CFLAGS = -Wall -Wextra -Wno-missing-braces -Werror=pointer-arith -O3
 
 NAME = a3clib
 HEADER = $(NAME).h
