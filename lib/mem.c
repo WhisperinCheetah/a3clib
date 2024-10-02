@@ -197,7 +197,7 @@ void* cl_malloc(int amount) {
 		chunk->size = aligned_amount;
 		chunk->inuse = true;
 		
-		heap.avail -= 16;
+		heap.avail -= 16; // TODO fix 16s, change with sizeof(cl_heap_chunk)
 	}
 
 	// printf("Allocated pointer; size=%d, actual size=%d @ %p\n", aligned_amount, chunk->size, chunk+1);
