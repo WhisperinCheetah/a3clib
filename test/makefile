@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wextra -Wno-missing-braces -Werror=pointer-arith
+CFLAGS = -Wall -Wextra -Wno-missing-braces -Werror=pointer-arith -O0
 
 all: test.o
 	gcc $(CFLAGS) -I../lib/ -L../lib/output/ -o main test.o -la3clib

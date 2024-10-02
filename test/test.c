@@ -116,7 +116,11 @@ int test_memcpy() {
 	int *arr1 = (int*)cl_malloc(sizeof(int) * size);
 	int *arr2 = (int*)cl_malloc(sizeof(int) * size);
 	int *arr3 = (int*)cl_malloc(sizeof(int) * size);
-	printf("%p;\n%p;\n%p;\n", arr1, arr2, arr3);
+	printf("test_cl_memcpy(): received pointers\n");
+	printf("\t%p\n", arr1);
+	printf("\t%p\n", arr2);
+	printf("\t%p\n", arr3);
+
 	for (int i = 0; i < size; i++) {
 		arr1[i] = rand() % size;
 	}
@@ -154,6 +158,7 @@ int test_memcmp() {
 		fprintf(stderr, "char *arr1 = %p\n", arr1);
 		fprintf(stderr, "char *arr2 = %p\n", arr2);
 		fprintf(stderr, "char *arr3 = %p\n", arr3);
+		return FAILURE;
 	}
 
 	printf("char *arr1 = %p\n", arr1);
@@ -180,6 +185,7 @@ int test_memcmp() {
 		return 1;
 	}
 
+
 	v = cl_memcmp(arr3, arr1, size);
 	if (v >= 0) {
 		printf("test_memcmp() failed!\n");
@@ -187,9 +193,13 @@ int test_memcmp() {
 		return 1;
 	}
 
+	printf("Remaining after test 4: %d\n", cl_remaining_heap_size());
+	
 	cl_free(arr3);
 	cl_free(arr2);
 	cl_free(arr1);
+
+	printf("Remaining after test 4: %d\n", cl_remaining_heap_size());
 	
 	return 0;
 }
@@ -265,6 +275,11 @@ int test_cl_malloc1() {
 	int* ptr2 = (int*)cl_malloc(sizeof(int) * size);
 	int* ptr3 = (int*)cl_malloc(sizeof(int) * size);
 
+	printf("test_cl_malloc1(): received pointers\n");
+	printf("\t%p\n", ptr1);
+	printf("\t%p\n", ptr2);
+	printf("\t%p\n", ptr3);
+	
 	for (int i = 0; i < size; i++) {
 		ptr1[i] = values1[i];
 		ptr2[i] = values2[i];

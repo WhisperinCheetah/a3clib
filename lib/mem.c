@@ -111,13 +111,20 @@ void cl_chunk_defrag(cl_heap_info* heap_info, cl_heap_chunk* chunk) {
 	while (chunk->next != NULL && chunk->next->inuse == false) {
 		// Merge forward
 		cl_heap_chunk* next = chunk->next;
-		chunk->size += next->size + 16; // add 16 since metadata gets removed
-		heap_info->avail += 16;
+		if (next->size == 0) {
+			printf("De fuck, next->size == 0 i guess\n");
+			exit(1);
+		}
+		chunk->size += next->size + sizeof(cl_heap_chunk); // metadata gets removed
+		heap_info->avail += sizeof(cl_heap_chunk);
+		next->size = 0;
 		chunk->next = next->next;
 	}
 }
 
 void cl_heap_defrag(cl_heap_info* heap_info) {
+	return; // This function needs reconsideration
+	
 	cl_heap_chunk* chunk = heap_info->start;
 	//printf("Start chunk: %p\n", chunk);
 	while (chunk->next != NULL) {
@@ -158,7 +165,7 @@ cl_heap_chunk* cl_heap_find_chunk(cl_heap_chunk* start, int amount) {
 
 void* cl_malloc(int amount) {
 	ensure_initialized();
-	int aligned_amount = get_aligned(amount, sizeof(cl_heap_chunk)); // Add 16 for metadata about chunk
+	int aligned_amount = get_aligned(amount, sizeof(cl_heap_chunk));
 
 	if (aligned_amount > heap.avail) {
 		// If not enough space, try defragmentation
@@ -183,11 +190,11 @@ void* cl_malloc(int amount) {
 	// If chunk is greater than the wanted amount and has at least
 	// 32 extra remaining, split it.
 	// 32 for metadata + at least 16 for other chunk
-	if (chunk->size - aligned_amount >= 32) { 
+	if (chunk->size - aligned_amount >= 2*sizeof(cl_heap_chunk)) {
 		// Split chunk
 		// Get position for next chunk metadata
-		cl_heap_chunk* next = chunk + (aligned_amount / 16) + 1; // metadata gets put behind
-		next->size = chunk->size - aligned_amount - 16;
+		cl_heap_chunk* next = (chunk+1) + (aligned_amount / sizeof(cl_heap_chunk)) + 1; // metadata gets put behind
+		next->size = chunk->size - aligned_amount - sizeof(cl_heap_chunk);
 		next->inuse = false;
 		next->next = chunk->next;
 		next->ll_next = free_list;
@@ -197,7 +204,7 @@ void* cl_malloc(int amount) {
 		chunk->size = aligned_amount;
 		chunk->inuse = true;
 		
-		heap.avail -= 16; // TODO fix 16s, change with sizeof(cl_heap_chunk)
+		heap.avail -= sizeof(cl_heap_chunk); 
 	}
 
 	// printf("Allocated pointer; size=%d, actual size=%d @ %p\n", aligned_amount, chunk->size, chunk+1);
@@ -230,7 +237,7 @@ void cl_free(void* ptr) {
 	chunk->inuse = false;
 	chunk->ll_next = free_list;
 	free_list = chunk;
-	// cl_chunk_defrag(&heap, chunk);
+	//cl_chunk_defrag(&heap, chunk);
 	heap.avail += chunk->size;
 }
 
