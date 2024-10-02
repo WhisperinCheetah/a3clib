@@ -1,7 +1,6 @@
 #include "a3clib.h"
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -40,15 +39,9 @@ void cl_memset(void* dest, char c, int count) {
 }
 
 
-/*
-Eerste bit van size op 1 -> not in use
-Op 0 -> in use
-
-next* kan weg, je kunt gewoon size bytes verder kijken
-size=0 betekent dat er geen chunk is
- */
 typedef struct _cl_heap_chunk {
-	uint64_t size;
+	int size;
+	bool inuse;
 	struct _cl_heap_chunk* next;
 	struct _cl_heap_chunk* ll_next;
 } cl_heap_chunk;
@@ -64,31 +57,11 @@ static bool initialized = false;
 static int heap_size;
 cl_heap_chunk* free_list;
 
-bool cl_inuse(cl_heap_chunk* chunk) {
-	uint64_t v = 1;
-	return (chunk->size & (v << 63)) == 0;
-}
-
-void cl_set_inuse(cl_heap_chunk* chunk) {
-	uint64_t v = 1;	
-	chunk->size |= (v << 63);
-}
-
-void cl_set_not_inuse(cl_heap_chunk* chunk) {
-	uint64_t v = 1;
-	chunk->size &= ~(v << 63);
-}
-
-uint64_t cl_size(cl_heap_chunk* chunk) {
-	uint64_t v = 1;
-	return chunk->size & ~(v << 63);
-}
-
 STATUS cl_heap_init(cl_heap_info* heap_info) {
 	// Standard heap space is 4096 bytes
 	// Slight overkill so I chose 1MB
 	// 4096 bytes * 256 = 1024*1024bytes = 1024KB = 1MB
-	heap_size = getpagesize() * 256; 
+	heap_size = getpagesize() * 1024; 
 	void* start = mmap(NULL, heap_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 	if (start == (void*)-1) {
 		fprintf(stderr, "Failed to initialize heap\n");
@@ -97,15 +70,14 @@ STATUS cl_heap_init(cl_heap_info* heap_info) {
 
 	cl_heap_chunk* first = (cl_heap_chunk*)start; // Put metadata at start
 	first->size = heap_size - sizeof(cl_heap_chunk);
-	cl_set_not_inuse(first);
+	first->inuse = false;
 	first->next = NULL;
 	first->ll_next = NULL;
 
 	heap_info->start = first;
 	heap_info->first_free = first;
-	heap_info->avail = cl_size(first);
-	printf("avail=%d\n", heap_info->avail);
-	
+	heap_info->avail = first->size;
+
 	free_list = first;
 
 	fprintf(stdout, "Initialized heap @ %p\n", start);
@@ -124,7 +96,6 @@ void cl_cleanup_heap() {
 int get_aligned(int amount, int alignment) {
 	// Amount needs to be a multiple of 16 (on 64-bit architectures)
 	// This function is also a bit of a mystery for me
-	// TODO what the fuck is this even
 	return (amount + alignment - 1) & ~(alignment - 1);
 }
 
@@ -137,11 +108,11 @@ void ensure_initialized() {
 }
 
 void cl_chunk_defrag(cl_heap_info* heap_info, cl_heap_chunk* chunk) {
-	while (chunk->next != NULL && cl_inuse(chunk->next) == false) {
+	while (chunk->next != NULL && chunk->next->inuse == false) {
 		// Merge forward
 		cl_heap_chunk* next = chunk->next;
-		chunk->size += cl_size(next) + sizeof(cl_heap_chunk); // add 16 since metadata gets removed
-		heap_info->avail += sizeof(cl_heap_chunk);
+		chunk->size += next->size + 16; // add 16 since metadata gets removed
+		heap_info->avail += 16;
 		chunk->next = next->next;
 	}
 }
@@ -150,23 +121,23 @@ void cl_heap_defrag(cl_heap_info* heap_info) {
 	cl_heap_chunk* chunk = heap_info->start;
 	//printf("Start chunk: %p\n", chunk);
 	while (chunk->next != NULL) {
-		if (cl_inuse(chunk) == false) {
+		if (chunk->inuse == false) {
 			cl_chunk_defrag(heap_info, chunk);
 		}
 		chunk = chunk->next;
 	}
 }
 
-cl_heap_chunk* cl_heap_find_chunk(cl_heap_chunk* start, unsigned int amount) {
+cl_heap_chunk* cl_heap_find_chunk(cl_heap_chunk* start, int amount) {
 	cl_heap_chunk* chunk = free_list;
-	if (free_list != NULL && cl_size(free_list) >= amount) {
+	if (free_list != NULL && free_list->size >= amount) {
 		free_list = free_list->ll_next;
 		chunk->ll_next = NULL;
 		return chunk;
 	}
 
 	chunk = free_list;
-	while (chunk->ll_next != NULL && cl_size(chunk->ll_next) < amount) {
+	while (chunk->ll_next != NULL && chunk->ll_next->size < amount) {
 		chunk = chunk->ll_next;
 	}
 
@@ -179,7 +150,7 @@ cl_heap_chunk* cl_heap_find_chunk(cl_heap_chunk* start, unsigned int amount) {
 	return NULL;
 	// Never gets to here
 	chunk = start;
-	while ((cl_inuse(chunk) || cl_size(chunk) < amount) && chunk != NULL) {
+	while ((chunk->inuse || chunk->size < amount) && chunk != NULL) {
 		chunk = chunk->next;
 	}
 	return chunk;
@@ -188,7 +159,6 @@ cl_heap_chunk* cl_heap_find_chunk(cl_heap_chunk* start, unsigned int amount) {
 void* cl_malloc(int amount) {
 	ensure_initialized();
 	int aligned_amount = get_aligned(amount, sizeof(cl_heap_chunk)); // Add 16 for metadata about chunk
-	printf("requested: %d, assigned: %d\n", amount, aligned_amount);
 
 	if (aligned_amount > heap.avail) {
 		// If not enough space, try defragmentation
@@ -209,30 +179,30 @@ void* cl_malloc(int amount) {
 			//chunk = cl_heap_find_chunk(heap.start, aligned_amount);
 	} 
 
+
 	// If chunk is greater than the wanted amount and has at least
 	// 32 extra remaining, split it.
 	// 32 for metadata + at least 16 for other chunk
-	if (cl_size(chunk) - aligned_amount >= sizeof(cl_heap_chunk)*2) { 
+	if (chunk->size - aligned_amount >= 32) { 
 		// Split chunk
 		// Get position for next chunk metadata
-		cl_heap_chunk* next = chunk + (aligned_amount / sizeof(cl_heap_chunk)) + 1; // metadata gets put behind
-		
-		next->size = cl_size(chunk) - aligned_amount - sizeof(cl_heap_chunk);
-		cl_set_not_inuse(next);
+		cl_heap_chunk* next = chunk + (aligned_amount / 16) + 1; // metadata gets put behind
+		next->size = chunk->size - aligned_amount - 16;
+		next->inuse = false;
 		next->next = chunk->next;
 		next->ll_next = free_list;
 		free_list = next;
 
-		cl_set_inuse(chunk);
 		chunk->next = next;
 		chunk->size = aligned_amount;
+		chunk->inuse = true;
 		
-		heap.avail -= sizeof(cl_heap_chunk);
+		heap.avail -= 16;
 	}
 
 	// printf("Allocated pointer; size=%d, actual size=%d @ %p\n", aligned_amount, chunk->size, chunk+1);
 	
-	heap.avail -= cl_size(chunk);
+	heap.avail -= chunk->size;
 	return (void*)(chunk + 1);
 }
 
@@ -257,11 +227,11 @@ void cl_free(void* ptr) {
 	}
 	
 	cl_heap_chunk* chunk = ((cl_heap_chunk*)ptr) - 1;
-	cl_set_not_inuse(chunk);
+	chunk->inuse = false;
 	chunk->ll_next = free_list;
 	free_list = chunk;
 	// cl_chunk_defrag(&heap, chunk);
-	heap.avail += cl_size(chunk);
+	heap.avail += chunk->size;
 }
 
 void* cl_realloc(void* ptr, int resize) {
@@ -270,7 +240,5 @@ void* cl_realloc(void* ptr, int resize) {
 }
 
 int cl_remaining_heap_size() {
-	ensure_initialized();
 	return heap.avail;
 }
-

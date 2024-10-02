@@ -40,6 +40,16 @@ STATUS assert_ptr(void* expected, void* actual, const char* message) {
 	return SUCCESS;
 }
 
+STATUS assert_ptr_ne(void* unexpected, void* actual, const char* message) {
+	if (unexpected == actual) {
+		printf("ASSERTION FAILED! expected %p, got %p\n", unexpected, actual);
+		printf("%s", message);
+		return FAILURE;
+	}
+	return SUCCESS;
+}
+
+
 void assert_ptr_st(STATUS* status, void* expected, void* actual, const char* message) {
 	STATUS res = assert_ptr(expected, actual, message);
 
@@ -284,6 +294,23 @@ int test_cl_malloc1() {
 	return status;
 }
 
+int test_cl_malloc2() {
+	int amount = cl_remaining_heap_size();
+	printf("Remaining amount: %d\n", amount);
+
+	void* p1 = cl_malloc(amount - 10000);
+	void* p2 = cl_malloc(15000);
+
+	STATUS status = SUCCESS;
+	assert_ptr_ne_st(&status, NULL, p1, "Could not allocate remaining data - 10000\n");
+	assert_ptr_st(&status, NULL, p2, "Allocated beyond the maximum amount of data remaining\n");
+
+	cl_free(p1);
+	cl_free(p2);
+
+	return status;
+}
+
 int test_cl_calloc() {
 	STATUS st = SUCCESS;
 
@@ -360,7 +387,7 @@ typedef int (*test_ptr)();
 int main() {
 	srand(time(NULL));
 
-	const int test_count = 11;
+	const int test_count = 12;
 	const test_ptr tests[] = {
 		test_merge_sort,
 		test_double_bubble_sort,
@@ -370,6 +397,7 @@ int main() {
 		test_atoi,
 		test_cl_array,
 		test_cl_malloc1,
+		test_cl_malloc2,
 		test_cl_calloc,
 		test_cl_hashmap,
 		test_abs,
