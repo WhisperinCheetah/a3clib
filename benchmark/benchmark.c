@@ -4,13 +4,12 @@
 #include "a3clib.h"
 
 typedef struct _TestNode {
-	int value;
-	struct _TestNode* next;
+	char cs[10];
 } TestNode;
 
 static int COUNT = 10000;
 
-int main() {
+void benchmark1() {
 	clock_t start;
 	clock_t end;
 	//	void* p;
@@ -88,5 +87,47 @@ int main() {
 		printf("Remaining bytes: %d\n", cl_remaining_heap_size());
 	}
 	*/
+}
+
+void __attribute__((optimize("O0"))) execute_malloc(int j){
+    for (int i=0;i<j;i++) malloc(sizeof(TestNode));
+}
+
+void __attribute__((optimize("O3"))) execute_falloc(int j){
+    for (int i=0;i<j;i++) cl_malloc(sizeof(TestNode));
+}
+
+void benchmark2(){
+    clock_t start;
+    clock_t end;
+
+    for(int i=1;i<100000;i=i*10){
+        start = clock();
+        execute_malloc(i);
+        end = clock();
+        float malloc_seconds = (float)(end - start) / CLOCKS_PER_SEC;
+        start = clock();
+        execute_falloc(i);
+        end = clock();
+        float cl_seconds = (float)(end - start) / CLOCKS_PER_SEC;
+        printf("%d: : %f\n",i, malloc_seconds/cl_seconds);
+    }
+}
+
+void benchmark3() {
+	int req_amount = cl_remaining_heap_size();
+	void* p1 = cl_malloc(req_amount);
+	printf("Before: %d, after: %d\n", req_amount, cl_remaining_heap_size());
+	void* p2 = cl_malloc(100);
+
+	printf("p1 = %p\n", p1);
+	printf("p2 = %p\n", p2);
+}
+
+int main() {
+	benchmark1();
 	return 0;
 }
+
+
+
